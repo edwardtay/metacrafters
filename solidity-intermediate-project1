@@ -1,0 +1,66 @@
+pragma solidity ^0.8.0;
+
+contract Staking {
+    mapping(address => uint256) private _balances;
+    mapping(address => uint256) private _timestamps;
+
+    uint256 private _totalStaked;
+
+    event Staked(address indexed user, uint256 amount);
+    event Withdrawn(address indexed user, uint256 amount);
+
+    function stake(uint256 amount) public {
+        require(amount > 0, "Staking amount must be greater than 0");
+
+        _totalStaked += amount;
+        _balances[msg.sender] += amount;
+        _timestamps[msg.sender] = block.timestamp;
+
+        emit Staked(msg.sender, amount);
+    }
+
+    function withdraw() public {
+        uint256 amount = _balances[msg.sender];
+        require(amount > 0, "No staked tokens to withdraw");
+
+        uint256 timeStaked = block.timestamp - _timestamps[msg.sender];
+        require(timeStaked >= 1 days, "Tokens must be staked for at least 1 day");
+
+        _totalStaked -= amount;
+        _balances[msg.sender] = 0;
+        _timestamps[msg.sender] = 0;
+
+        assert(address(this).balance >= amount); // Ensure the contract has enough balance to pay out
+
+        payable(msg.sender).transfer(amount);
+
+        emit Withdrawn(msg.sender, amount);
+    }
+
+    function totalStaked() public view returns (uint256) {
+        return _totalStaked;
+    }
+
+    function balanceOf(address account) public view returns (uint256) {
+        return _balances[account];
+    }
+
+    function timeStaked(address account) public view returns (uint256) {
+        return block.timestamp - _timestamps[account];
+    }
+
+    function emergencyWithdraw() public {
+        require(msg.sender == owner(), "Only contract owner can access emergency withdraw");
+
+        uint256 contractBalance = address(this).balance;
+        require(contractBalance > 0, "Contract balance is zero");
+
+        payable(owner()).transfer(contractBalance);
+
+        emit Withdrawn(owner(), contractBalance);
+    }
+
+    function owner() public view returns (address) {
+        return address(uint160(owner));
+    }
+}
